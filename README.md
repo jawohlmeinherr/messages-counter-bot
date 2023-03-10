@@ -1,3 +1,7 @@
 # MessageCounterBot
 
-Created by JqwohlMeinHerr
+Created by JawohlMeinHerr
+
+Команды:
+/echo - вывести пересланное боту в ЛС сообщение в консоль (для отладки)
+/check_user - вывести статистику о пользователе, сообщение которого переслано
