@@ -13,9 +13,10 @@ db = sqlite3.connect('counter.db', check_same_thread=False)
 sql = db.cursor()
 
 sql.execute(""" CREATE TABLE IF NOT EXISTS count (
-    user_id TEXT,
-    messages_count TEXT,
-    symbols_count TEXT)""")
+    user_id BIGINT,
+    user_name TEXT,
+    messages_count INT,
+    symbols_count INT)""")
 db.commit()
 
 # echo
@@ -29,7 +30,7 @@ def echo(message):
     for k in r:
         admins_ids.append(k[0])
 
-    if str(message.from_user.id) in admins_ids:
+    if message.from_user.id in admins_ids:
         msg = bot.reply_to(message, 'Перешли сообщение, объект которого нужно напечатать в консоль!')
         bot.register_next_step_handler(msg, echo_txt)
     else:
@@ -50,15 +51,14 @@ def receive_new_admin_id(message):
     for k in r:
         admins_ids.append(k[0])
 
-    if str(message.from_user.id) in admins_ids:
+    if message.from_user.id in admins_ids:
         msg = bot.reply_to(message, 'Перешли сообщение от того человека, которого хочешь назначить администратором бота!')
         bot.register_next_step_handler(msg, add_new_admin)
     else:
         bot.reply_to(message, 'У тебя нет прав для использования этой команд. Сорян!')
 
 def add_new_admin(message):
-    new_admin_id = str(message.forward_from.id)
-    sql.execute("""INSERT INTO admins VALUES (?)""", (new_admin_id,))
+    sql.execute("""INSERT INTO admins VALUES (?)""", (message.forward_from.id,))
     bot.reply_to(message, f'Добавлен новый администратор с id {message.forward_from.id}')
 
 #list if admins
@@ -72,7 +72,7 @@ def list_of_admins(message):
     for k in r:
         admins_ids.append(k[0])
 
-    if str(message.from_user.id) in admins_ids:
+    if message.from_user.id in admins_ids:
         bot.reply_to(message, f'Список текущих администраторов: {admins_ids}')
     else:
         bot.reply_to(message, 'У тебя нет прав для использования этой команды. Сорян!')
@@ -88,17 +88,17 @@ def request_user_message(message):
     for k in r:
         admins_ids.append(k[0])
 
-    if str(message.from_user.id) in admins_ids:
+    if message.from_user.id in admins_ids:
         msg = bot.reply_to(message, 'Перешли сообщение человека, статистику по которому ты хочешь увидеть!')
         bot.register_next_step_handler(msg, check_user_statistics)
     else:
         bot.reply_to(message, 'У тебя нет прав для использования этой команды. Сорян!')
 
 def check_user_statistics(message):
-    sql.execute("""SELECT * FROM count WHERE user_id = ?""", (str(message.forward_from.id),))
+    sql.execute("""SELECT * FROM count WHERE user_id = ?""", (message.forward_from.id,))
     r = sql.fetchall()
     if len(r) != 0:
-        bot.reply_to(message, f'user_id: {r[0][0]}\nmessages: {r[0][1]}\nsymbols:{r[0][2]}')
+        bot.reply_to(message, f'Информация найдена!\n\nID пользователя: {r[0][0]}\nИмя пользователя: @{r[0][1]}\nСообщений: {r[0][2]}\nСимволов:{r[0][3]}')
     else:
         bot.reply_to(message, 'Этого пользователя нет в базе данных!')
 
@@ -114,42 +114,35 @@ def request_admin_id(message):
     for k in r:
         admins_ids.append(k[0])
 
-    if str(message.from_user.id) in admins_ids:
+    if message.from_user.id in admins_ids:
         msg = bot.reply_to(message, 'Перешли сообщение человека, которого ты хочешь убрать из списка администраторов!')
         bot.register_next_step_handler(msg, delete_admin)
     else:
         bot.reply_to(message, 'У тебя нет прав для использования этой команды. Сорян!')
 
 def delete_admin(message):
-    admin_id_needs_to_delete = str(message.forward_from.id)
-    sql.execute("""DELETE FROM admins WHERE admin_id = ?""", (admin_id_needs_to_delete,))
+    sql.execute("""DELETE FROM admins WHERE admin_id = ?""", (message.forward_from.id,))
     db.commit()
-    bot.reply_to(message, f'Администратор с id {admin_id_needs_to_delete} удален из списка администраторов!')
+    bot.reply_to(message, f'Администратор с id {message.forward_from.id} удален из списка администраторов!')
 
 # adding data to database
 
 @bot.message_handler(content_types=['text'])
 def received_text(message):
-    sql.execute("""SELECT user_id FROM  count""")
+    sql.execute("""SELECT user_id FROM count""")
     user_ids = sql.fetchall()
     users = []
 
     for k in user_ids:
         users.append(k[0])
 
-    if str(message.from_user.id) in users:
-        sql.execute("""SELECT * FROM count WHERE user_id = ?""", (str(message.from_user.id),))
+    if message.from_user.id in users:
+        sql.execute("""SELECT * FROM count WHERE user_id = ?""", (message.from_user.id,))
         user_data = sql.fetchall()
-        new_user_id = str(message.from_user.id)
-        new_messages_count = str(int(user_data[0][1]) + 1)
-        new_symbols_count = str(int(user_data[0][2]) + len(message.text))
-        sql.execute("""UPDATE count SET messages_count = ?, symbols_count = ? WHERE user_id = ?""", (new_messages_count, new_symbols_count, new_user_id))
+        sql.execute("""UPDATE count SET messages_count = ?, symbols_count = ? WHERE user_id = ?""", (user_data[0][2] + 1, user_data[0][3] + len(message.text), message.from_user.id))
         db.commit()
     else:
-        new_user_id = str(message.from_user.id)
-        new_messages_count = '1'
-        new_symbols_count = str(len(message.text))
-        sql.execute("""INSERT INTO count VALUES (?, ?, ?)""", (new_user_id, new_messages_count, new_symbols_count,))
+        sql.execute("""INSERT INTO count VALUES (?, ?, ?, ?)""", (message.from_user.id, message.from_user.username, 1, len(message.text),))
         db.commit()
 
 bot.enable_save_next_step_handlers(delay=2)
